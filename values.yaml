@@ -1,0 +1,51 @@
+---
+environment: dev
+
+namespace: ejabberd
+
+ejabberd_yml: "secrets/ejabberd.yml"
+erlang_cookie: "secrets/.erlang.cookie"
+
+component:
+  name: ejabberd
+  replicas: 3
+  image: ejabberd/ecs:22.05
+  service:
+    http:
+      name: ejabberd-http-svc
+      protocol: http
+      port: 5280
+      gw: ejabberd-http-gw
+      vs: ejabberd-http-vs
+      hostnames:
+        - ejabberd-gui.example.com
+    xmpp:
+      name: ejabberd-xmpp-svc
+      protocol: xmpp
+      port: 5222
+  nlb:
+    service:
+      bosh:
+        protocol: bosh
+        port: 5280
+      xmpp:
+        protocol: xmpp
+        port: 5222
+    subnet:
+      a: dev-k8s-nlb-a
+      b: dev-k8s-nlb-b
+      c: dev-k8s-nlb-c
+  volumes:
+    - name: ejabberd-db
+      path: /home/ejabberd/database
+      dir: database
+      size: 1Gi
+    - name: ejabberd-logs
+      path: /home/ejabberd/logs
+      dir: logs
+      size: 1Gi
+  efs:
+    name: ejabberd-uploads-efs
+    path: /home/ejabberd/upload
+    dir: upload
+    size: 1Mi
