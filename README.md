@@ -42,6 +42,7 @@ Docker image used: `ejabberd/ecs:22.05`
 
 ## Final comments
 
+- The script generate-ejabberd-yaml.sh may be used to create manifests for various environments.
 - An AWS NLB will be created by the chart and a DNS record should be created to access the NLB - may be removed if not necessary.
 - The annotations in statefulset will provide metrics for Prometheus and preparation for logging in Elasticsearch.
 - Config secrets/ejabberd.yml and files/.erlang.cookie should be stored encrypted and should 
