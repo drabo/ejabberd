@@ -3,6 +3,7 @@
 CHART=ejabberd
 NAMESPACE=ejabberd
 
+# Set the list of environments accepted
 declare -a ENVS=(dev)
 
 # Check the number of parameters
@@ -19,5 +20,6 @@ release_name=$(date +%s)
 yaml_file=${CHART}-${ENV}.yaml
 echo -e "\e[32mCreate ${yaml_file}\e[0m"
 
+# Use environment specific values (e.g. dev)
 # helm2 template . -f values-${ENV}.yaml --name ${release_name} --namespace ${NAMESPACE} >${yaml_file}
 helm3 template ${release_name} . -f values-${ENV}.yaml --namespace ${NAMESPACE} >${yaml_file}
