@@ -1,0 +1,160 @@
+{{- $component_name := .Values.component.name }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.component.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.component.replicas }}
+  selector:
+    matchLabels:
+     app: {{ .Values.component.name }}
+  serviceName: {{ .Values.component.name }}-headless
+  volumeClaimTemplates:
+  {{- range .Values.component.volumes }}
+  - metadata:
+      name: {{ .name }}
+      labels:
+        app: {{ $component_name }}
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .size }}
+  {{- end}}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.component.name }}
+      annotations:
+        co.elastic.logs/multiline.match: after
+        co.elastic.logs/multiline.negate: "true"
+        co.elastic.logs/multiline.pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "9000"
+        prometheus.io/scrape: "true"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Values.component.name }}
+              topologyKey: kubernetes.io/hostname
+            weight: 1
+      initContainers:
+      - name: cookie-startup
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command:
+          - sh
+          - -c
+          - mkdir -p /cookie && cp /tmp/.erlang.cookie /cookie/ && chmod 0400 /cookie/.erlang.cookie && chown 9000:9000 /cookie/.erlang.cookie
+        volumeMounts:
+        - name: erlang-cookie
+          mountPath: /tmp/.erlang.cookie
+          subPath: .erlang.cookie
+        - name: cookie-volume
+          mountPath: /cookie
+      - name: cluster-db-cleanup
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command:
+          - sh
+          - -c
+          - rm -rf /home/ejabberd/database/*
+        volumeMounts:
+        - name: ejabberd-db
+          mountPath: /home/ejabberd/database
+          subPath: database
+      - name: cluster-startup
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command:
+          - sh
+          - -c
+          - mkdir -p /cluster/bin && cp /tmp/cluster.sh /cluster/bin/ && chmod +x /cluster/bin/cluster.sh
+        volumeMounts:
+        - name: config-map
+          mountPath: /tmp/cluster.sh
+          subPath: cluster.sh
+        - name: cluster-volume
+          mountPath: /cluster/bin
+      containers:
+      - name: {{ .Values.component.name }}
+        image: {{ .Values.component.image }}
+        imagePullPolicy: Always
+        command:
+        - "/usr/local/bin/cluster.sh"
+        ports:
+        {{- range .Values.component.service }}
+        - name: {{ .protocol }}
+          protocol: TCP
+          containerPort: {{ .port }}
+        {{- end}}
+        - name: cluster
+          protocol: TCP
+          containerPort: 4369
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: {{ .Values.component.service.http.port }}
+          initialDelaySeconds: 30
+          timeoutSeconds: 10
+        resources:
+          limits:
+            cpu: "1"
+          requests:
+            cpu: 100m
+        volumeMounts:
+        - name: ejabberd-shared
+          mountPath: {{ .Values.component.efs.path }}
+        - name: ejabberd-yml
+          mountPath: /home/ejabberd/conf/ejabberd.yml
+          subPath: ejabberd.yml
+          readOnly: true
+        - name: cluster-volume
+          mountPath: /usr/local/bin/cluster.sh
+          subPath: cluster.sh
+          readOnly: true
+        - name: cookie-volume
+          mountPath: /home/ejabberd/.erlang.cookie
+          subPath: .erlang.cookie
+          readOnly: true
+        {{- range .Values.component.volumes }}
+        - name: {{ .name }}
+          mountPath: {{ .path }}
+          subPath: {{ .dir }}
+        {{- end}}
+        securityContext:
+          allowPrivilegeEscalation: true
+          runAsUser: 0
+      volumes:
+      - name: ejabberd-shared
+        persistentVolumeClaim:
+          claimName: {{ .Values.component.efs.name }}
+      - name: ejabberd-yml
+        secret:
+          secretName: ejabberd-yml
+          defaultMode: 
+      - name: cluster-volume
+        emptyDir: {}
+      - name: config-map
+        configMap:
+          name: cluster-startup
+          items:
+          - key: cluster.sh
+            path: cluster.sh
+      - name: cookie-volume
+        emptyDir: {}
+      - name: erlang-cookie
+        secret:
+          secretName: erlang-cookie
+          defaultMode: 
+      securityContext:
+        fsGroup: 9000

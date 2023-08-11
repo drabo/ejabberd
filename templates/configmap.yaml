@@ -1,0 +1,9 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-startup
+  namespace: {{ .Values.namespace }}
+data:
+  cluster.sh: |-
+{{ .Files.Get "files/cluster.sh" | indent 4 }}

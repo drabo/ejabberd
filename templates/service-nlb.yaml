@@ -1,0 +1,30 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.component.name }}-nlb
+  namespace: {{ .Values.namespace }}
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: Name={{ .Values.environment }}-{{ .Values.component.name }}-nlb,Environment={{ .Values.environment }},ManagedBy=me@example.com
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    service.beta.kubernetes.io/aws-load-balancer-internal: 0.0.0.0/0
+    service.beta.kubernetes.io/aws-load-balancer-name: {{ .Values.environment }}-{{ .Values.component.name }}-nlb
+    service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: '*'
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-subnets: {{ .Values.component.nlb.subnet.a }}, {{ .Values.component.nlb.subnet.b }}, {{ .Values.component.nlb.subnet.c }}
+    service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: stickiness.enabled=true,stickiness.type=source_ip
+spec:
+  type: LoadBalancer
+  healthCheckNodePort: 30436
+  externalTrafficPolicy: Local
+  selector:
+    app: {{ .Values.component.name }}
+  ports:
+  - name: {{ .Values.component.nlb.service.bosh.protocol }}
+    protocol: TCP
+    port: {{ .Values.component.nlb.service.bosh.port }}
+    targetPort: {{ .Values.component.nlb.service.bosh.port }}
+  - name: {{ .Values.component.nlb.service.xmpp.protocol }}
+    protocol: TCP
+    port: {{ .Values.component.nlb.service.xmpp.port }}
+    targetPort: {{ .Values.component.nlb.service.xmpp.port }}

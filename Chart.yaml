@@ -1,0 +1,11 @@
+apiVersion: v1
+name: ejabberd
+version: 0.0.1
+description: ejabberd
+keywords:
+  - ejabberd
+  - xmpp
+  - bosh
+maintainers:
+  - name: drabo
+    url: https://github.com/drabo
